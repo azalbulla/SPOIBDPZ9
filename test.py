@@ -1,50 +1,54 @@
 from main import SQLTable
 
+
 if __name__ == "__main__":
-    TBL_BOOKS = 'test_books'
-    TBL_AUTHORS = 'test_authors'
+    books_db = SQLTable(db_config, 'library_books', engine='mysql')
+    authors_db = SQLTable(db_config, 'library_authors', engine='mysql')
 
-    db = SQLTable(db_config, TBL_BOOKS, engine='mysql')
+    books_db.drop_table()
+    authors_db.drop_table()
 
-    db.drop_table()
-    db.create_table('id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(100), price INT')
+    print('создание таблиц')
+    authors_db.create_table('id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), country VARCHAR(50)')
+    books_db.create_table('id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(100), author_id INT, year INT, price INT')
 
-    db.insert({'title': 'Мастер и Маргарита', 'price': 650})
-    db.insert({'title': 'Преступление и наказание', 'price': 720})
-    db.insert({'title': 'Война и мир', 'price': 890})
-    db.insert({'title': 'Евгений Онегин', 'price': 540})
+    print('добавление авторов и книг')
+    authors_db.insert({'name': 'Александр Пушкин', 'country': 'Россия'})
+    authors_db.insert({'name': 'Джордж Оруэлл', 'country': 'Великобритания'})
+    authors_db.insert({'name': 'Стивен Кинг', 'country': 'США'})
 
-    print("\nКниги с ценой > 600:")
-    for book in db.select(filters={'price': ('>', 600)}):
-        print(book)
+    books_db.insert({'title': 'Капитанская дочка', 'author_id': 1, 'year': 1836, 'price': 500})
+    books_db.insert({'title': '1984', 'author_id': 2, 'year': 1949, 'price': 700})
+    books_db.insert({'title': 'Сияние', 'author_id': 3, 'year': 1977, 'price': 600})
+    books_db.insert({'title': 'Евгений Онегин', 'author_id': 1, 'year': 1833, 'price': 450})
 
-    db_authors = SQLTable(db_config, TBL_AUTHORS, engine='mysql')
-    db_authors.drop_table()
-    db_authors.create_table('id INT AUTO_INCREMENT PRIMARY KEY, book_id INT, author_name VARCHAR(100)')
+    # фильтрация
+    print("\nфильтрация( книги с ценой > 550)")
+    expensive_books = books_db.select(filters={'price': ('>', 550)})
+    for book in expensive_books:
+        print(f"Книга: {book['title']}, Цена: {book['price']}")
 
-    db_authors.insert({'book_id': 1, 'author_name': 'Михаил Булгаков'})
-    db_authors.insert({'book_id': 2, 'author_name': 'Фёдор Достоевский'})
-    db_authors.insert({'book_id': 3, 'author_name': 'Лев Толстой'})
-    db_authors.insert({'book_id': 4, 'author_name': 'Александр Пушкин'})
-
-    print("\nINNER JOIN (книги + авторы):")
-    join_res = db.join_query(
-        TBL_AUTHORS,
-        f'{TBL_BOOKS}.id = {TBL_AUTHORS}.book_id',
-        columns=f'{TBL_BOOKS}.title, {TBL_AUTHORS}.author_name',
+    # 5. сложный запрос JOIN (книги вместе с именами авторов)
+    print("\nJOIN(список книг с их авторами)")
+    # Соединяем library_books и library_authors
+    join_res = books_db.join_query(
+        other_table='library_authors',
+        on='library_books.author_id = library_authors.id',
+        columns='library_books.title, library_authors.name as author',
         join_type='INNER'
     )
-    for r in join_res:
-        print(r)
+    for row in join_res:
+        print(f"'{row['title']}' написал {row['author']}")
 
-    print("\nUNION (названия книг + имена авторов):")
-    q1 = (f"SELECT title as value FROM {TBL_BOOKS}", [])
-    q2 = (f"SELECT author_name as value FROM {TBL_AUTHORS}", [])
-    union_res = db.union_query([q1, q2], distinct=True)
-    for r in union_res:
-        print(r)
+    # 6. UNION (объединие названия книг и имен авторов в один список)
+    print("\nUNION(все названия и имена в базе)")
+    q1 = ("SELECT title as value FROM library_books", [])
+    q2 = ("SELECT name as value FROM library_authors", [])
+    union_res = books_db.union_query([q1, q2], union_all=False)
+    for item in union_res:
+        print(f"Объект: {item['value']}")
 
-    db_authors.drop_table()
-    db.drop_table()
-    db.disconnect()
-    db_authors.disconnect()
+    # Завершение
+    books_db.disconnect()
+    authors_db.disconnect()
+    print("\nтест успешно завершен.")
